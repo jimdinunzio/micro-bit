@@ -6,6 +6,9 @@
 # left with warning beeping and then resumes going straight.  It stops after
 # the set run time (RUN_TIME_MS) and can be run again by pressing the A button.
 #
+# This program was written in MIND+ (http://mindplus.cc/en.html)
+# To upload it to the Maqueen, install MIND+ and copy code to the manual editing
+# tab, connect to your robot and click Upload.  Have Fun!
 # 
 # Copyright (c) 2019 Jim DiNunzio MIT License
 
