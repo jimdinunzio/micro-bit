@@ -7,7 +7,6 @@ import urm10
 import random
 
 LOW_PWR = 25
-#  MED_PWR = 60
 HIGH_PWR = 100
 CW = 0
 CCW = 1
@@ -15,7 +14,6 @@ LEFT = 0
 RIGHT = 1
 DEG_PER_uSECOND = 0.24  # 360.0/1500.0
 CM_PER_uSECOND = 0.024  # 24.0/1000.0
-#  MAX_OBJ_DIST = 91  # 2.54 * 12 * math.sqrt(3*3+3*3)
 
 class Motor:
     def __init__(self):
@@ -67,6 +65,8 @@ class Robot:
         self.motor.stop(0)
         self.motor.stop(1)
 
+# Rotate deg degrees in dir (CW or CCW) direction
+# (blocking function - does not return until move is complete)
 def rotDegBlk(dir, deg):
     #  print("rot", deg, "degrees")
     maq.rot(dir, LOW_PWR)
@@ -75,6 +75,8 @@ def rotDegBlk(dir, deg):
         sleep(20)
     maq.stop()
 
+# Go forward dist cm
+# (blocking function - does not return until move is complete)
 def fwdCmBlk(dist):
     #  print("Fwd", dist, "cm")
     maq.fwd(HIGH_PWR)
@@ -94,6 +96,8 @@ def getDist():
 # globals
 maq = None
 
+# Rotate deg degrees at low power
+# (python generator function) (non-blocking)
 def rotDeg(dir, deg):
     maq.rot(dir, LOW_PWR)
     rotTimer = Timer(deg / DEG_PER_uSECOND)
@@ -104,6 +108,9 @@ def rotDeg(dir, deg):
         else:
             yield True
 
+# Check whether robot has hit arena black boundary
+# if hit, returns direction (CW or CCW) and angle to turn away from boundary
+# if not hit, returns -1 for both dir and angle
 def chkBndry():
     left = 0
     right = 0
@@ -135,6 +142,7 @@ while True:
     waitBtnAPress()
     sleep(2000)
     # move straight, then pick a random direction, wait, then repeat
+    # if object is detected ahead less than 15 cm, turn to avoid and go straight
     mv = True
     avoid = False
     # Main Playing Loop

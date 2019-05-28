@@ -69,6 +69,8 @@ class Robot:
         self.motor.stop(0)
         self.motor.stop(1)
 
+    # Rotate deg degrees in dir (CW or CCW) direction
+    # (blocking function - does not return until move is complete)
     def rotDegBlk(self, dir, deg):
         #  print("rot", deg, "degrees")
         self.rot(dir, LOW_PWR)
@@ -77,6 +79,8 @@ class Robot:
             sleep(20)
         self.stop()
 
+    # Go forward dist cm
+    # (blocking function - does not return until move is complete)
     def fwdCmBlk(self, dist):
         #  print("Fwd", dist, "cm")
         self.fwd(HIGH_PWR)
@@ -96,6 +100,8 @@ def getDist():
 # globals
 maq = None
 
+# Rotate deg degrees at low power
+# (python generator function) (non-blocking)
 def rotDeg(dir, deg):
     maq.rot(dir, LOW_PWR)
     rotTimer = Timer(deg / DEG_PER_uSECOND)
@@ -106,6 +112,9 @@ def rotDeg(dir, deg):
         else:
             yield True
 
+# Check whether robot has hit arena black boundary
+# if hit, returns direction (CW or CCW) and angle to turn away from boundary
+# if not hit, returns -1 for both dir and angle
 def chkBndry():
     left = 0
     right = 0
@@ -140,7 +149,9 @@ while True:
 
     # Main Playing Loop
     while True:
-        # Rotate in random dir find closest object
+        # Rotate in circle in random dir and find closest object
+        # if hit boundary, turn away from it.
+        # if rotated around 3 times and found nothing, go forward for 1 s and try again
         #  print("find obj")
         display.show(Image.HAPPY)
         if rotCt > 3:
@@ -175,7 +186,7 @@ while True:
             sleep(10)
 
         # if object found go in its direction that distance
-        # if distance is not closing anymore, then reaquire object
+        # if distance is getting bigger, then stop and search for object again
         if (dist < MAX_OBJ_DIST):
             display.show(Image.PACMAN)
             maq.fwd(HIGH_PWR)
