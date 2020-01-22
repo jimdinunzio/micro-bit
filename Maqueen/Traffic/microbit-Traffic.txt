@@ -1,0 +1,191 @@
+// Constants
+// const DEFAULT_SPEED = 0
+// const TURN_SPEED = 0
+// const SLOW_SPEED = 0
+
+const DEFAULT_SPEED = 255
+const TURN_SPEED = 255
+const SLOW_SPEED = DEFAULT_SPEED / 3
+
+// Direction enumeration
+const D_FORWARD = 0
+const D_REVERSE = 1
+const D_RIGHT = 2
+const D_LEFT = 3
+
+// gState enumeration
+const S_STOPPED = 0
+const S_MOVING = 1
+
+// Message enumeration
+const M_MOVE_IT = 0
+const M_GO_TO_SLEEP = 1
+const M_DONT_SLEEP = 2
+
+// globals
+let gState = S_STOPPED
+let gDir = D_FORWARD
+let gSpeed = 0
+let gSleepToken = false // only one who has sleep token will randomly stop and sleep
+
+// Press A on first bot to start
+input.onButtonPressed(Button.A, function () {
+    serial.writeLine("I'm starting")
+    setMovingLook()
+    gSpeed = DEFAULT_SPEED
+    gState = S_MOVING
+    gSleepToken = false
+    followLine()
+})
+
+// Press B on any bot to stop all
+input.onButtonPressed(Button.B, function () {
+    stop()
+    setSleepingLook()
+    serial.writeLine("I'm telling others to stop.")
+    radio.sendNumber(M_GO_TO_SLEEP)
+})
+
+radio.setGroup(33)
+radio.setTransmitSerialNumber(true)
+let uLights: neopixel.Strip = null
+uLights = neopixel.create(DigitalPin.P15, 4, NeoPixelMode.RGB)
+
+radio.onReceivedNumber(function (receivedNumber) {
+    radio.writeReceivedPacketToSerial()
+    if (receivedNumber == M_MOVE_IT) {
+        serial.writeLine("I need to move it!")
+        setMovingLook()
+        gSpeed = DEFAULT_SPEED
+        gState = S_MOVING
+        gSleepToken = true
+        followLine()
+    } else if (receivedNumber == M_GO_TO_SLEEP) {
+        serial.writeLine("I'm told to stop.");
+        stop()
+        setSleepingLook()
+    } else if (receivedNumber == M_DONT_SLEEP && control.deviceSerialNumber() == -1315784194) {
+        serial.writeLine("I won't sleep")
+        gSleepToken = false
+    }
+})
+
+const ON = true
+const OFF = false
+
+function setLeds(state: boolean) {
+    Maqueen.writeLED(Maqueen.LED.LEDLeft, state ? Maqueen.LEDswitch.turnOn : Maqueen.LEDswitch.turnOff)
+    Maqueen.writeLED(Maqueen.LED.LEDRight, state ? Maqueen.LEDswitch.turnOn : Maqueen.LEDswitch.turnOff)
+}
+
+function setMovingLook() {
+    basic.showIcon(IconNames.Happy)
+    setLeds(ON)
+}
+
+function setSleepingLook() {
+    basic.showIcon(IconNames.Asleep)
+    setLeds(OFF)
+}
+
+function moveStraight(dir: number, speed: number) {
+    Maqueen.motorRun(Maqueen.Motors.All, dir == D_FORWARD ? Maqueen.Dir.CW : Maqueen.Dir.CCW, speed)
+}
+
+function turn(dir: number, speed: number) {
+    Maqueen.motorRun(Maqueen.Motors.M1, Maqueen.Dir.CW, dir == D_LEFT ? 0 : speed)  // M1 is Left wheel motor
+    Maqueen.motorRun(Maqueen.Motors.M2, Maqueen.Dir.CW, dir == D_RIGHT ? 0 : speed) // M2 is Right wheel motor
+}
+
+function stop() {
+    serial.writeLine("I'm stopping.")
+    Maqueen.motorStop(Maqueen.Motors.All)
+    gState = S_STOPPED
+    gSpeed = 0
+}
+
+function pressHornFlashLights() {
+    setLeds(OFF)
+    basic.pause(100)
+    setLeds(ON)
+    music.playTone(Note.D, 250)
+    setLeds(OFF)
+    music.rest(90)
+    setLeds(ON)
+    music.playTone(Note.D, 250)
+}
+
+const CHANGE_SPEED_PERIOD = 3000
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      
+// start up code
+basic.showIcon(IconNames.Asleep)
+let lastTimeSpeedChanged = input.runningTime()
+
+// Randomly stop every 5 to 10 seconds
+control.inBackground(function () {
+    while (true) {
+        uLights.showColor(neopixel.rgb(255, 0, 0))
+        basic.pause(Math.randomRange(10, 20) * 1000)
+        if (gState == S_MOVING && gSleepToken) {
+            serial.writeLine("I'm randomly stopping.")
+            stop()
+            setSleepingLook()
+        }
+    }
+})
+
+basic.forever(function () {
+    let dist = Maqueen.Ultrasonic(PingUnit.Centimeters)
+    if (gState == S_MOVING) {
+        //serial.writeNumber(dist)
+        //serial.writeLine("")
+        if (dist >= 50) {
+            if (gSpeed == SLOW_SPEED || input.runningTime() - lastTimeSpeedChanged > CHANGE_SPEED_PERIOD) {
+                gSpeed = DEFAULT_SPEED - Math.randomRange(0, 150)
+                //serial.writeLine("Gap big. Changing speed to: " + gSpeed)
+                lastTimeSpeedChanged = input.runningTime()
+            }
+        } else if (dist < 50 && dist >= 15) {
+            //serial.writeLine("gap small, go slow.")
+            gSpeed = SLOW_SPEED
+        } else if (dist > 0 && dist < 15) {
+            stop()
+            basic.showIcon(IconNames.Angry)
+            pressHornFlashLights()
+            radio.sendNumber(M_MOVE_IT)
+            gSleepToken = false
+            basic.pause(2000)
+            gState = S_MOVING
+            setMovingLook()
+        }
+    }
+    else if (gState == S_STOPPED) {
+        music.playTone(10, 500)
+        music.playTone(15, 250)
+    }
+})
+
+control.inBackground(function () {
+    while (true) {
+        if (gState == S_MOVING) {
+            followLine()
+        }
+        basic.pause(25)
+    }
+})
+
+function followLine() {
+    let patrolBits = Maqueen.readPatrol(Maqueen.Patrol.PatrolLeft) |
+        (Maqueen.readPatrol(Maqueen.Patrol.PatrolRight) << 1)
+    switch (patrolBits) {
+        case 0:
+            moveStraight(D_FORWARD, gSpeed)
+            break
+        case 1:
+            turn(D_RIGHT, TURN_SPEED)
+            break
+        case 2:
+            turn(D_LEFT, TURN_SPEED)
+            break
+    }
+}

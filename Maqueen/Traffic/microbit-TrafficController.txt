@@ -1,0 +1,29 @@
+const M_MOVE_IT = 0
+const M_GO_TO_SLEEP = 1
+const M_DONT_SLEEP = 2
+
+basic.showArrow(6)
+// on button A tell cars to start moving
+input.onButtonPressed(Button.A, function () {
+    for (let index = 0; index < 4; index++) {
+        basic.showNumber(4 - index)
+        basic.pause(100)
+    }
+    radio.sendNumber(M_MOVE_IT)
+    radio.sendNumber(M_DONT_SLEEP) // only one serial number acts on this
+    basic.showString("Go!")
+    basic.showArrow(2)
+})
+// on button B tell cars to stop moving
+input.onButtonPressed(Button.B, function () {
+    radio.sendNumber(M_GO_TO_SLEEP)
+    basic.showArrow(6)
+})
+radio.onReceivedNumber(function (receivedNumber) {
+    serial.writeLine("Received msg: " + receivedNumber + " from: " + radio.receivedPacket(1))
+})
+
+radio.setGroup(33)
+basic.forever(function () {
+
+})
