@@ -25,7 +25,7 @@ const M_GO_TO_SLEEP = 1
 const M_DONT_SLEEP = 2
 const M_YOU_HIT_ME = 3
 
-const TWO_HALF_G_MAG = Math.sqrt(511 * 511 + 1023 * 1023 * 2)
+const TWO_HALF_G_MAG = Math.sqrt(768 * 768 + 1023 * 1023 * 2)
 
 const RED_BOT_ID = -1315784194
 const GREEN_BOT_ID = 0
@@ -86,6 +86,7 @@ radio.onReceivedNumber(function (receivedNumber) {
         serial.writeLine("I won't sleep")
         gSleepToken = false
     } else if (receivedNumber == M_YOU_HIT_ME) {
+        stop()
         gState = S_ACCIDENT_WAS_MOVING
     }
 })
@@ -154,7 +155,7 @@ if (control.deviceSerialNumber() == RED_BOT_ID) {
 // Randomly stop every 5 to 10 seconds
 control.inBackground(function () {
     while (true) {
-        basic.pause(Math.randomRange(10, 20) * 1000)
+        basic.pause(Math.randomRange(5, 15) * 1000)
         if (gState == S_MOVING && gSleepToken) {
             //serial.writeLine("I'm randomly stopping.")
             stop()
@@ -186,7 +187,7 @@ basic.forever(function () {
         } else if (dist < 50 && dist >= 15) {
             //serial.writeLine("gap small, go slow.")
             gSpeed = SLOW_SPEED
-        } else if (dist > 0 && dist < 15) {
+        } else if (dist > 1 && dist < 15) {
             // one out of 6 times, just ram the guy at full speed!
             let roll = Math.randomRange(1, 6)
             if (roll == 6 || roll == 2) {
@@ -207,17 +208,15 @@ basic.forever(function () {
         music.playTone(15, 250)
     } else if (gState == S_ACCIDENT_WAS_STOPPED) {
         basic.showIcon(IconNames.Angry)
+        radio.sendNumber(M_YOU_HIT_ME)
         for (let i = 0; i < 100; i++) {
             music.playTone(music.noteFrequency(Math.randomRange(2000, 4000)), 5)
         }
-        basic.pause(1000)
-        radio.sendNumber(M_YOU_HIT_ME)
         basic.pause(5000)
         gState = S_MOVING
         setMovingLook()
         gSleepToken = true
     } else if (gState == S_ACCIDENT_WAS_MOVING) {
-        stop()
         basic.showIcon(IconNames.Sad)
         music.beginMelody(["c3:2", "d2:1", ":2", "c2", "g2:5", ":2", "d#3:1", "d3", "db3", "c3", "cb3", "bb2:4"], MelodyOptions.Once)
         basic.pause(5000)
