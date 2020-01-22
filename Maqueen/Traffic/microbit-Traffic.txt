@@ -25,7 +25,7 @@ const M_GO_TO_SLEEP = 1
 const M_DONT_SLEEP = 2
 const M_YOU_HIT_ME = 3
 
-const TWO_HALF_G_MAG = Math.sqrt(768 * 768 + 1023 * 1023 * 2)
+const TWO_HALF_G_MAG = Math.sqrt(767 * 767 + 1023 * 1023 * 2)
 
 const RED_BOT_ID = -1315784194
 const GREEN_BOT_ID = 0
@@ -155,7 +155,7 @@ if (control.deviceSerialNumber() == RED_BOT_ID) {
 // Randomly stop every 5 to 10 seconds
 control.inBackground(function () {
     while (true) {
-        basic.pause(Math.randomRange(5, 15) * 1000)
+        basic.pause(Math.randomRange(7.5, 15) * 1000)
         if (gState == S_MOVING && gSleepToken) {
             //serial.writeLine("I'm randomly stopping.")
             stop()
@@ -188,27 +188,30 @@ basic.forever(function () {
             //serial.writeLine("gap small, go slow.")
             gSpeed = SLOW_SPEED
         } else if (dist > 1 && dist < 15) {
-            // one out of 6 times, just ram the guy at full speed!
+            // two out of 6 times, just ram the guy at full speed!
             let roll = Math.randomRange(1, 6)
-            if (roll == 6 || roll == 2) {
+            let ramHim = (roll == 6 || roll == 2)
+            if (ramHim) {
                 gSpeed = DEFAULT_SPEED
             } else {
                 stop()
             }
             basic.showIcon(IconNames.Angry)
             pressHornFlashLights()
-            radio.sendNumber(M_MOVE_IT)
-            gSleepToken = false
-            basic.pause(2000)
-            gState = S_MOVING
-            setMovingLook()
+            if (!ramHim) {
+                radio.sendNumber(M_MOVE_IT)
+                gSleepToken = false
+                basic.pause(2000)
+                gState = S_MOVING
+                setMovingLook()
+            }
         }
     } else if (gState == S_STOPPED) {
         music.playTone(10, 500)
         music.playTone(15, 250)
     } else if (gState == S_ACCIDENT_WAS_STOPPED) {
-        basic.showIcon(IconNames.Angry)
         radio.sendNumber(M_YOU_HIT_ME)
+        basic.showIcon(IconNames.Angry)
         for (let i = 0; i < 100; i++) {
             music.playTone(music.noteFrequency(Math.randomRange(2000, 4000)), 5)
         }
