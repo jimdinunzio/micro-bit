@@ -16,21 +16,34 @@ const D_LEFT = 3
 // gState enumeration
 const S_STOPPED = 0
 const S_MOVING = 1
+const S_ACCIDENT_WAS_STOPPED = 2
+const S_ACCIDENT_WAS_MOVING = 3
 
 // Message enumeration
 const M_MOVE_IT = 0
 const M_GO_TO_SLEEP = 1
 const M_DONT_SLEEP = 2
+const M_YOU_HIT_ME = 3
+
+const TWO_HALF_G_MAG = Math.sqrt(511 * 511 + 1023 * 1023 * 2)
+
+const RED_BOT_ID = -1315784194
+const GREEN_BOT_ID = 0
 
 // globals
 let gState = S_STOPPED
 let gDir = D_FORWARD
 let gSpeed = 0
 let gSleepToken = false // only one who has sleep token will randomly stop and sleep
+let gPlayStartupMusic = true
 
 // Press A on first bot to start
 input.onButtonPressed(Button.A, function () {
     serial.writeLine("I'm starting")
+    if (gPlayStartupMusic) {
+        playStartupMusic()
+        gPlayStartupMusic = false
+    }
     setMovingLook()
     gSpeed = DEFAULT_SPEED
     gState = S_MOVING
@@ -44,6 +57,7 @@ input.onButtonPressed(Button.B, function () {
     setSleepingLook()
     serial.writeLine("I'm telling others to stop.")
     radio.sendNumber(M_GO_TO_SLEEP)
+    gPlayStartupMusic = true
 })
 
 radio.setGroup(33)
@@ -54,6 +68,10 @@ uLights = neopixel.create(DigitalPin.P15, 4, NeoPixelMode.RGB)
 radio.onReceivedNumber(function (receivedNumber) {
     radio.writeReceivedPacketToSerial()
     if (receivedNumber == M_MOVE_IT) {
+        if (gPlayStartupMusic) {
+            playStartupMusic()
+            gPlayStartupMusic = false
+        }
         serial.writeLine("I need to move it!")
         setMovingLook()
         gSpeed = DEFAULT_SPEED
@@ -67,6 +85,8 @@ radio.onReceivedNumber(function (receivedNumber) {
     } else if (receivedNumber == M_DONT_SLEEP && control.deviceSerialNumber() == -1315784194) {
         serial.writeLine("I won't sleep")
         gSleepToken = false
+    } else if (receivedNumber == M_YOU_HIT_ME) {
+        gState = S_ACCIDENT_WAS_MOVING
     }
 })
 
@@ -98,10 +118,15 @@ function turn(dir: number, speed: number) {
 }
 
 function stop() {
-    serial.writeLine("I'm stopping.")
+    //    serial.writeLine("I'm stopping.")
     Maqueen.motorStop(Maqueen.Motors.All)
     gState = S_STOPPED
     gSpeed = 0
+}
+
+function playStartupMusic() {
+    music.beginMelody(["g4:1", "c5", "e", "g:2", "e:1", "g:3"], MelodyOptions.Once)
+    basic.pause(1500)
 }
 
 function pressHornFlashLights() {
@@ -116,20 +141,33 @@ function pressHornFlashLights() {
 }
 
 const CHANGE_SPEED_PERIOD = 3000
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      
+
 // start up code
 basic.showIcon(IconNames.Asleep)
 let lastTimeSpeedChanged = input.runningTime()
+if (control.deviceSerialNumber() == RED_BOT_ID) {
+    uLights.showColor(neopixel.rgb(127, 0, 0))
+} else {
+    uLights.showColor(neopixel.rgb(0, 127, 0))
+}
 
 // Randomly stop every 5 to 10 seconds
 control.inBackground(function () {
     while (true) {
-        uLights.showColor(neopixel.rgb(255, 0, 0))
         basic.pause(Math.randomRange(10, 20) * 1000)
         if (gState == S_MOVING && gSleepToken) {
-            serial.writeLine("I'm randomly stopping.")
+            //serial.writeLine("I'm randomly stopping.")
             stop()
             setSleepingLook()
+        }
+    }
+})
+
+control.onEvent(EventBusSource.MICROBIT_ID_ACCELEROMETER, EventBusValue.MICROBIT_ACCELEROMETER_EVT_DATA_UPDATE, function () {
+    if (input.acceleration(Dimension.Strength) > TWO_HALF_G_MAG) {
+        if (gState == S_STOPPED) {
+            serial.writeLine("crash, was stopped")
+            gState = S_ACCIDENT_WAS_STOPPED
         }
     }
 })
@@ -141,7 +179,7 @@ basic.forever(function () {
         //serial.writeLine("")
         if (dist >= 50) {
             if (gSpeed == SLOW_SPEED || input.runningTime() - lastTimeSpeedChanged > CHANGE_SPEED_PERIOD) {
-                gSpeed = DEFAULT_SPEED - Math.randomRange(0, 150)
+                gSpeed = DEFAULT_SPEED - Math.randomRange(0, 200)
                 //serial.writeLine("Gap big. Changing speed to: " + gSpeed)
                 lastTimeSpeedChanged = input.runningTime()
             }
@@ -149,7 +187,13 @@ basic.forever(function () {
             //serial.writeLine("gap small, go slow.")
             gSpeed = SLOW_SPEED
         } else if (dist > 0 && dist < 15) {
-            stop()
+            // one out of 6 times, just ram the guy at full speed!
+            let roll = Math.randomRange(1, 6)
+            if (roll == 6 || roll == 2) {
+                gSpeed = DEFAULT_SPEED
+            } else {
+                stop()
+            }
             basic.showIcon(IconNames.Angry)
             pressHornFlashLights()
             radio.sendNumber(M_MOVE_IT)
@@ -158,10 +202,28 @@ basic.forever(function () {
             gState = S_MOVING
             setMovingLook()
         }
-    }
-    else if (gState == S_STOPPED) {
+    } else if (gState == S_STOPPED) {
         music.playTone(10, 500)
         music.playTone(15, 250)
+    } else if (gState == S_ACCIDENT_WAS_STOPPED) {
+        basic.showIcon(IconNames.Angry)
+        for (let i = 0; i < 100; i++) {
+            music.playTone(music.noteFrequency(Math.randomRange(2000, 4000)), 5)
+        }
+        basic.pause(1000)
+        radio.sendNumber(M_YOU_HIT_ME)
+        basic.pause(5000)
+        gState = S_MOVING
+        setMovingLook()
+        gSleepToken = true
+    } else if (gState == S_ACCIDENT_WAS_MOVING) {
+        stop()
+        basic.showIcon(IconNames.Sad)
+        music.beginMelody(["c3:2", "d2:1", ":2", "c2", "g2:5", ":2", "d#3:1", "d3", "db3", "c3", "cb3", "bb2:4"], MelodyOptions.Once)
+        basic.pause(5000)
+        gState = S_MOVING
+        setMovingLook()
+        gSleepToken = false
     }
 })
 
@@ -189,3 +251,5 @@ function followLine() {
             break
     }
 }
+
+
